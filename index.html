@@ -102,6 +102,9 @@
     const logBody = document.getElementById('logBody');
     let data = JSON.parse(localStorage.getItem('satReadingLog') || '[]');
 
+    let skillChartInstance = null;
+    let mistakeChartInstance = null;
+
     form.onsubmit = e => {
       e.preventDefault();
       const entry = {
@@ -138,7 +141,10 @@
       const skillAcc = skillLabels.map(k => Math.round(100 * (skills[k].correct / skills[k].total)));
       const skillMistakes = skillLabels.map(k => skills[k].total - skills[k].correct);
 
-      new Chart("skillChart", {
+      if (skillChartInstance) skillChartInstance.destroy();
+      if (mistakeChartInstance) mistakeChartInstance.destroy();
+
+      skillChartInstance = new Chart("skillChart", {
         type: 'bar', data: {
           labels: skillLabels,
           datasets: [{ label: "% Correct", data: skillAcc, backgroundColor: "#38bdf8" }]
@@ -146,7 +152,7 @@
         options: { scales: { y: { beginAtZero: true, max: 100 } } }
       });
 
-      new Chart("mistakeChart", {
+      mistakeChartInstance = new Chart("mistakeChart", {
         type: 'pie', data: {
           labels: skillLabels,
           datasets: [{ data: skillMistakes, backgroundColor: ["#fb923c", "#facc15", "#34d399", "#60a5fa", "#a78bfa", "#f472b6", "#f87171"] }]
