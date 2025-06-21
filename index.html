@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAT Reading Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #2f3e4e;
+      color: #dce3ec;
+    }
+    .bg-panel {
+      background-color: #3a4c5f;
+    }
+    .text-light {
+      color: #dce3ec;
+    }
+    select, input, button {
+      background-color: #4a5d75;
+      color: #dce3ec;
+      border: 1px solid #708090;
+    }
+    input::placeholder, select {
+      color: #aebac7;
+    }
+    table th, table td {
+      border-color: #708090;
+    }
+  </style>
+</head>
+<body class="p-4 font-sans">
+  <h1 class="text-3xl font-bold mb-4 text-light">📘 SAT Reading Mistake Tracker</h1>
+
+  <!-- Entry Form -->
+  <div class="bg-panel rounded-xl shadow p-4 mb-6 max-w-2xl">
+    <h2 class="text-xl font-semibold mb-2 text-light">Log a New Attempt</h2>
+    <form id="entryForm" class="grid grid-cols-2 gap-4">
+      <input type="date" id="date" required class="p-2 rounded col-span-2" />
+      <input type="text" id="questionId" placeholder="Question ID" required class="p-2 rounded" />
+      <select id="correct" class="p-2 rounded">
+        <option value="Y">Correct</option>
+        <option value="N">Incorrect</option>
+      </select>
+      <select id="skill" class="p-2 rounded">
+        <option>Central Ideas and Details</option>
+        <option>Inferences</option>
+        <option>Command of Evidence</option>
+        <option>Words in Context</option>
+        <option>Text Structure and Purpose</option>
+        <option>Cross-Text Connections</option>
+        <option>Expression of Ideas</option>
+        <option>Rhetorical Synthesis</option>
+        <option>Transitions</option>
+        <option>Boundaries</option>
+        <option>Form, Structure, and Sense</option>
+      </select>
+      <select id="difficulty" class="p-2 rounded">
+        <option>Easy</option>
+        <option>Medium</option>
+        <option>Hard</option>
+      </select>
+      <input type="text" id="notes" placeholder="Notes (Optional)" class="p-2 rounded col-span-2" />
+      <button type="submit" class="bg-blue-600 text-white rounded px-4 py-2 col-span-2">Add Entry</button>
+    </form>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-panel rounded-xl shadow p-4">
+      <h2 class="text-xl font-semibold mb-2 text-light">Accuracy by Skill</h2>
+      <canvas id="skillChart"></canvas>
+    </div>
+    <div class="bg-panel rounded-xl shadow p-4">
+      <h2 class="text-xl font-semibold mb-2 text-light">Skill Distribution of Mistakes</h2>
+      <canvas id="mistakeChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Review Log -->
+  <div class="bg-panel rounded-xl shadow p-4 mb-6 overflow-auto">
+    <h2 class="text-xl font-semibold mb-2 text-light">Review Log</h2>
+    <table id="logTable" class="min-w-full text-sm">
+      <thead>
+        <tr class="bg-gray-700 text-left">
+          <th class="p-2">Date</th><th class="p-2">ID</th><th class="p-2">✔</th>
+          <th class="p-2">Skill</th><th class="p-2">Diff</th><th class="p-2">Notes</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+
+  <div class="flex gap-4">
+    <button onclick="exportCSV()" class="bg-green-600 text-white px-4 py-2 rounded">Download CSV</button>
+    <button onclick="clearData()" class="bg-red-600 text-white px-4 py-2 rounded">❌ Clear All Data</button>
+  </div>
+
+  <script>
+    const form = document.getElementById('entryForm');
+    const logBody = document.getElementById('logBody');
+    let data = JSON.parse(localStorage.getItem('satReadingLog') || '[]');
+
+    form.onsubmit = e => {
+      e.preventDefault();
+      const entry = {
+        date: date.value,
+        questionId: questionId.value,
+        correct: correct.value,
+        skill: skill.value,
+        difficulty: difficulty.value,
+        notes: notes.value
+      };
+      data.push(entry);
+      localStorage.setItem('satReadingLog', JSON.stringify(data));
+      form.reset();
+      render();
+    };
+
+    function render() {
+      logBody.innerHTML = data.map(e => `<tr>
+        <td class="p-2">${e.date}</td><td class="p-2">${e.questionId}</td><td class="p-2">${e.correct}</td>
+        <td class="p-2">${e.skill}</td><td class="p-2">${e.difficulty}</td><td class="p-2">${e.notes}</td>
+      </tr>`).join('');
+      updateCharts();
+    }
+
+    function updateCharts() {
+      const skills = {};
+      data.forEach(e => {
+        skills[e.skill] = skills[e.skill] || { total: 0, correct: 0 };
+        skills[e.skill].total++;
+        if (e.correct === 'Y') skills[e.skill].correct++;
+      });
+
+      const skillLabels = Object.keys(skills);
+      const skillAcc = skillLabels.map(k => Math.round(100 * (skills[k].correct / skills[k].total)));
+      const skillMistakes = skillLabels.map(k => skills[k].total - skills[k].correct);
+
+      new Chart("skillChart", {
+        type: 'bar', data: {
+          labels: skillLabels,
+          datasets: [{ label: "% Correct", data: skillAcc, backgroundColor: "#38bdf8" }]
+        },
+        options: { scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+
+      new Chart("mistakeChart", {
+        type: 'pie', data: {
+          labels: skillLabels,
+          datasets: [{ data: skillMistakes, backgroundColor: ["#fb923c", "#facc15", "#34d399", "#60a5fa", "#a78bfa", "#f472b6", "#f87171"] }]
+        }
+      });
+    }
+
+    function exportCSV() {
+      const headers = Object.keys(data[0] || {}).join(',');
+      const rows = data.map(d => Object.values(d).map(v => '"' + v + '"').join(',')).join('\n');
+      const csv = headers + '\n' + rows;
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'SAT_Reading_Log.csv';
+      a.click();
+    }
+
+    function clearData() {
+      if (confirm("Are you sure you want to clear all your SAT tracker data? This cannot be undone.")) {
+        localStorage.removeItem('satReadingLog');
+        data = [];
+        render();
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>
